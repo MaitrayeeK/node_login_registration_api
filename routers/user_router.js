@@ -22,7 +22,7 @@ async (req,res)=>{
         }
         
         // Encrypt the password of user for security
-        const hash_pass = await bcrypt.hash(req.body.password, 10)
+        const hash_pass = await bcrypt.hash(req.body.password.toString(), 10)
 
         // Check if user is already exists or not
         let user = await User.findOne({ email:req.body.email });
@@ -35,19 +35,16 @@ async (req,res)=>{
             password: hash_pass,
             role: req.body.role
         })
-        // Used await for wait for the operation to be done
-        let result = await user.save();
-        const data = {
-            user:{
-                id : user.id
-            }
-        }
 
         // Creating jwt token for authentication
-        const authToken = jwt.sign(data, process.env.JWT_SECRET, { expiresIn: '3600s' })
-        result = {
+        const authToken = jwt.sign({user}, process.env.JWT_SECRET, { expiresIn: '3600s' })
+        let result = {
             authtoken: authToken 
         }
+
+        // Used await for wait for the operation to be done
+        await user.save();
+
         res.send({ message: "Registration successfully completed.", data: result, result: true}); 
     } catch (error) {
         console.log(error)
@@ -70,14 +67,10 @@ async (req,res) => {
                 if (err) {
                     return res.send({ message: "An error occurred.", result: false})
                 } else if (isMatch) {
-                    const data = {
-                        user:{
-                            id : user.id
-                        }
-                    }
+                    const data = user
 
                     // Creating jwt token for authentication
-                    const authToken = jwt.sign(data, process.env.JWT_SECRET, { expiresIn: '3600s' })
+                    const authToken = jwt.sign({user: data}, process.env.JWT_SECRET, { expiresIn: '3600s' })
                     user = {
                         authtoken: authToken 
                     }
@@ -95,13 +88,31 @@ async (req,res) => {
     }
 })
 
-// Get user data with token authentication of user https://localhost:8080/user/register
+// Get user data with token authentication of user https://localhost:8080/user/getuser
 router.post("/getuser", checktoken,
 // Using asynchronous function for send the responses
 async (req,res)=>{
     try {
-        userid = req.user.id
-        const user = await User.findById(userid).select("-password")
+        if(req.user.role == 1) {
+            const user = await User.find().select("-password")
+            res.send({ data: user, result: true})
+        } else {
+            const userid = req.user._id
+            const user = await User.findById(userid).select("-password")
+            res.send({ data: user, result: true})
+        }
+    } catch (error) {
+        console.log(error)
+        res.status(500).send({ message: "Internal error ocurred.", result: false})
+    }
+})
+
+// Get all user data with token authentication of user https://localhost:8080/user/getalluser
+router.post("/getalluser", checktoken,
+// Using asynchronous function for send the responses
+async (req,res)=>{
+    try {
+        const user = await User.find().select("-password")
         res.send({ data: user, result: true})
     } catch (error) {
         console.log(error)
